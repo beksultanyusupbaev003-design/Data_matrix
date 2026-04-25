@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Bulk QR · Pro generator</title>
+
+    <!-- BWIP-JS (DataMatrix generator) -->
+    <script src="https://cdn.jsdelivr.net/npm/bwip-js@4.5.1/dist/bwip-js-min.js"></script>
+
+    <!-- JSZip (CDN) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Font Awesome 6 (free) for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.1s;
+        }
+
+        :root {
+            --bg: #f6f9fc;
+            --card: #ffffff;
+            --text: #1a2b3c;
+            --border: #e2e8f0;
+            --primary: #0b5e7c;
+            --primary-light: #1e7a9c;
+            --secondary: #64748b;
+            --accent: #2d9cdb;
+            --shadow: 0 8px 20px rgba(0,20,30,0.08);
+            --qr-bg: #ffffff;
+            --placeholder: #94a3b8;
+            --success: #0e7b6e;
+            --card-radius: 28px;
+        }
+
+        body.dark {
+            --bg: #121826;
+            --card: #1e2638;
+            --text: #e9edf5;
+            --border: #2f3a54;
+            --primary: #2f80ed;
+            --primary-light: #4791e8;
+            --secondary: #9aa8c2;
+            --shadow: 0 8px 20px rgba(0,0,0,0.5);
+            --qr-bg: #1e2638;
+            --placeholder: #596580;
+            --success: #3bb3a0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .app-container {
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        /* header + controls */
+        .header-card {
+            background: var(--card);
+            border-radius: var(--card-radius);
+            padding: 1.8rem 1.5rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.9rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.3rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        h1 i {
+            color: var(--primary);
+        }
+
+        .badge {
+            background: var(--primary-light);
+            color: white;
+            font-size: 0.9rem;
+            padding: 0.3rem 1rem;
+            border-radius: 40px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 1.5rem 0 0.8rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.7rem 1.4rem;
+            border-radius: 60px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
+            background: var(--card);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            box-shadow: 0 6px 14px rgba(15, 100, 140, 0.3);
+        }
+
+        .btn-primary i {
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary-light);
+            background: var(--primary-light);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0a4b63;
+            border-color: #0a4b63;
+        }
+
+        .count-indicator {
+            background: var(--primary-light);
+            color: white;
+            padding: 0.4rem 1.4rem;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 1rem;
+            white-space: nowrap;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 1.5rem;
+            border-radius: 32px;
+            border: 2px solid var(--border);
+            background: var(--card);
+            color: var(--text);
+            font-size: 1rem;
+            line-height: 1.6;
+            resize: vertical;
+            margin: 20px 0 12px;
+            outline: none;
+            transition: 0.2s;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .progress-container {
+            background: var(--border);
+            border-radius: 60px;
+            height: 10px;
+            width: 100%;
+            margin: 16px 0 6px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 10px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            width: 0%;
+            border-radius: 60px;
+            transition: width 0.15s ease;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.95rem;
+            color: var(--secondary);
+            margin: 5px 0 10px;
+        }
+
+        /* QR GRID (vertical cards) */
+        .qr-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            margin: 2.5rem 0 3rem;
+        }
+
+        .qr-card {
+            background: var(--card);
+            border-radius: 34px;
+            padding: 2rem 2rem 1.8rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            opacity: 0;
+            animation: fadeInUp 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        @keyframes fadeInUp {
+            0% { opacity: 0; transform: translateY(12px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .qr-wrapper {
+            background: var(--qr-bg);
+            padding: 1.2rem;
+            border-radius: 36px;
+            display: inline-block;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            margin-bottom: 1.4rem;
+        }
+
+        .qr-wrapper canvas, .qr-wrapper img {
+            width: min(280px, 65vw);
+            height: auto;
+            aspect-ratio: 1/1;
+            display: block;
+            border-radius: 24px;
+        }
+
+        .qr-text-label {
+            font-size: 1.1rem;
+            font-weight: 500;
+            word-break: break-word;
+            max-width: 90%;
+            background: var(--bg);
+            padding: 0.9rem 2rem;
+            border-radius: 60px;
+            border: 1px dashed var(--border);
+            color: var(--primary-light);
+            margin-top: 6px;
+        }
+
+        .small-note {
+            font-size: 0.9rem;
+            color: var(--secondary);
+            margin-top: 10px;
+        }
+
+        .placeholder-info {
+            background: var(--card);
+            border-radius: 40px;
+            padding: 4rem 2rem;
+            text-align: center;
+            border: 2px dashed var(--border);
+            color: var(--placeholder);
+        }
+
+        /* responsive */
+        @media (max-width: 600px) {
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .btn-group { justify-content: center; }
+            h1 { font-size: 1.6rem; }
+            .qr-card { padding: 1.5rem 1rem; }
+        }
+        footer {
+            margin-top: 1rem;
+            opacity: 0.6;
+        }
+        .dark-toggle {
+            background: var(--card);
+        }
+        i { color: var(--primary); }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="header-card">
+        <h1>
+            <i class="fas fa-qrcode"></i> Bulk QR Pro
+            <span class="badge"><span id="validCount">0</span> valid</span>
+        </h1>
+        <div class="toolbar">
+            <div class="btn-group">
+                <button class="btn" id="uploadBtn" title="Upload TXT file"><i class="fas fa-upload"></i> TXT</button>
+                <button class="btn" id="generateBtn"><i class="fas fa-play"></i> Generate</button>
+                <button class="btn" id="clearBtn"><i class="fas fa-eraser"></i> Clear</button>
+                <button class="btn" id="refreshBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                <button class="btn" id="darkToggle"><i class="fas fa-moon"></i> Dark</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="downloadZipBtn"><i class="fas fa-file-archive"></i> Download ZIP</button>
+            </div>
+        </div>
+
+        <!-- text area -->
+        <textarea id="inputTextarea" rows="6" placeholder="Paste multiple lines — each line with 5+ characters becomes a DataMatrix code. Short lines are skipped..."></textarea>
+
+        <!-- progress & stats -->
+        <div class="progress-container" id="progressContainer" style="display: none;">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="stats">
+            <span><i class="fas fa-list"></i> Total lines: <span id="totalLines">0</span></span>
+            <span><i class="fas fa-check-circle"></i> Eligible (≥5): <span id="eligibleLines">0</span></span>
+        </div>
+    </div>
+
+    <!-- QR stack output -->
+    <div id="qrStack" class="qr-stack"></div>
+
+    <footer class="small-note">
+        <i class="fas fa-shield-alt"></i> DataMatrix · 300+ px · async batch
+    </footer>
+</div>
+
+<!-- hidden file input -->
+<input type="file" id="fileInput" accept=".txt, text/plain" style="display: none;">
+
+<script>
+    (function() {
+        // --- DOM elements
+        const textarea = document.getElementById('inputTextarea');
+        const qrStackDiv = document.getElementById('qrStack');
+        const validSpan = document.getElementById('validCount');
+        const totalLinesSpan = document.getElementById('totalLines');
+        const eligibleSpan = document.getElementById('eligibleLines');
+        const generateBtn = document.getElementById('generateBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const darkToggle = document.getElementById('darkToggle');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const downloadZipBtn = document.getElementById('downloadZipBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+
+        // --- state
+        let currentValidQRCodes = [];        // store { text, dataUrl? } (dataUrl filled after generation)
+        let isGenerating = false;
+        let generationAbort = false;
+
+        // --- helper: count lines and eligible
+        function updateCounts() {
+            const raw = textarea.value;
+            const lines = raw.split(/\r?\n/);
+            const total = lines.length;
+            const eligible = lines.filter(l => l.trim().length >= 5).length;
+            totalLinesSpan.innerText = total;
+            eligibleSpan.innerText = eligible;
+        }
+
+        textarea.addEventListener('input', updateCounts);
+        updateCounts(); // initial
+
+        // --- dark mode
+        function toggleDark() {
+            document.body.classList.toggle('dark');
+            const icon = darkToggle.querySelector('i');
+            if (document.body.classList.contains('dark')) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+                darkToggle.innerHTML = '<i class="fas fa-sun"></i> Light';
+            } else {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+                darkToggle.innerHTML = '<i class="fas fa-moon"></i> Dark';
+            }
+        }
+        darkToggle.addEventListener('click', toggleDark);
+
+        // --- clear (also resets view)
+        clearBtn.addEventListener('click', () => {
+            textarea.value = '';
+            currentValidQRCodes = [];
+            renderQRStack([]);
+            updateCounts();
+        });
+
+        // --- refresh page (simple reload)
+        refreshBtn.addEventListener('click', () => location.reload());
+
+        // --- file upload
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                textarea.value = ev.target.result;
+                updateCounts();
+                fileInput.value = ''; // allow re-upload same file
+            };
+            reader.readAsText(file);
+        });
+
+        // --- render QR stack from array of {text, dataUrl} (with fade in)
+        function renderQRStack(codes) {
+            if (!codes || codes.length === 0) {
+                qrStackDiv.innerHTML = `<div class="placeholder-info"><i class="fas fa-smile-wink" style="font-size:2.5rem; opacity:0.5; margin-bottom:1rem;"></i><br />No codes yet. Paste long text and generate.</div>`;
+                validSpan.innerText = '0';
+                return;
+            }
+            let html = '';
+            codes.forEach((item, idx) => {
+                html += `<div class="qr-card" style="animation-delay: ${idx * 0.03}s">
+                    <div class="qr-wrapper">
+                        <img src="${item.dataUrl}" alt="DataMatrix code" crossorigin="anonymous" loading="lazy">
+                    </div>
+                    <div class="qr-text-label">${escapeHtml(item.text)}</div>
+                </div>`;
+            });
+            qrStackDiv.innerHTML = html;
+            validSpan.innerText = codes.length;
+        }
+
+        // simple escape for text (avoid XSS)
+        function escapeHtml(unsafe) {
+            return unsafe.replace(/[&<>"']/g, function(m) {
+                if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;';
+                if(m === '"') return '&quot;'; return '&#039;';
+            });
+        }
+
+        // --- generate DataMatrix codes in batches (async)
+        generateBtn.addEventListener('click', async () => {
+            if (isGenerating) return;
+            const raw = textarea.value;
+            const lines = raw.split(/\r?\n/);
+            const validTexts = lines
+                .map(l => l.trim())
+                .filter(t => t.length >= 5);   // core rule
+
+            if (validTexts.length === 0) {
+                alert('No lines with 5+ characters. Nothing to generate.');
+                return;
+            }
+
+            // reset state
+            isGenerating = true;
+            generationAbort = false;
+            currentValidQRCodes = [];
+            qrStackDiv.innerHTML = `<div class="placeholder-info"><i class="fas fa-spinner fa-pulse"></i> Generating ${validTexts.length} DataMatrix codes ...</div>`;
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+
+            const total = validTexts.length;
+            let completed = 0;
+            const batchSize = 20;
+
+            for (let i = 0; i < validTexts.length; i += batchSize) {
+                if (generationAbort) break;
+                const batch = validTexts.slice(i, i + batchSize);
+
+                const promises = batch.map(async (text) => {
+                    try {
+                        const dataUrl = await generateDataMatrixDataURL(text);
+                        return { text, dataUrl };
+                    } catch (err) {
+                        console.warn('DataMatrix error for text:', text, err);
+                        return null;
+                    }
+                });
+
+                const results = await Promise.all(promises);
+                const validResults = results.filter(r => r !== null);
+                currentValidQRCodes.push(...validResults);
+
+                completed = currentValidQRCodes.length;
+                progressFill.style.width = `${(completed / total) * 100}%`;
+
+                renderQRStack([...currentValidQRCodes]);
+                await new Promise(r => setTimeout(r, 10));
+            }
+
+            progressContainer.style.display = 'none';
+            isGenerating = false;
+
+            if (!generationAbort) {
+                renderQRStack(currentValidQRCodes);
+            } else {
+                qrStackDiv.innerHTML = `<div class="placeholder-info">Cancelled.</div>`;
+            }
+        });
+
+        // --- DataMatrix generator (returns PNG dataURL)
+        function generateDataMatrixDataURL(text) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const canvas = document.createElement('canvas');
+
+                    // BWIP-JS DataMatrix
+                    bwipjs.toCanvas(canvas, {
+                        bcid: 'datamatrix',   // DataMatrix type
+                        text: text,
+                        scale: 6,             // size control
+                        includetext: false,
+                        padding: 8,
+                        backgroundcolor: 'FFFFFF'
+                    });
+
+                    // convert canvas to PNG dataURL
+                    const url = canvas.toDataURL('image/png');
+                    resolve(url);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+
+        // --- ZIP download
+        downloadZipBtn.addEventListener('click', async () => {
+            if (currentValidQRCodes.length === 0) {
+                alert('No codes generated yet. Click Generate first.');
+                return;
+            }
+
+            const zip = new JSZip();
+            const folder = zip.folder('datamatrix_codes');
+
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+
+            let processed = 0;
+            const total = currentValidQRCodes.length;
+
+            for (const item of currentValidQRCodes) {
+                let filename = item.text.trim().replace(/[^a-z0-9_\-\.\u4e00-\u9fa5]/gi, '_');
+                if (filename.length === 0) filename = 'datamatrix';
+                if (filename.length > 80) filename = filename.slice(0, 80);
+
+                let finalFilename = filename + '.png';
+                let counter = 1;
+
+                while (folder.file(finalFilename)) {
+                    finalFilename = filename + '_' + counter + '.png';
+                    counter++;
+                }
+
+                const dataUrl = item.dataUrl;
+                const blob = await (await fetch(dataUrl)).blob();
+                folder.file(finalFilename, blob, { base64: false });
+
+                processed++;
+                progressFill.style.width = `${(processed / total) * 100}%`;
+                await new Promise(r => setTimeout(r, 5));
+            }
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = 'datamatrix_bulk.zip';
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            progressContainer.style.display = 'none';
+        });
+
+        // initial placeholder render
+        renderQRStack([]);
+    })();
+</script>
+</body>
+</html>
