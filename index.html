@@ -325,7 +325,7 @@
         </div>
 
         <!-- text area -->
-        <textarea id="inputTextarea" rows="6" placeholder="Paste multiple lines — each line with 5+ characters becomes a DataMatrix code. Short lines are skipped..."></textarea>
+        <textarea id="inputTextarea" rows="6" placeholder="Paste multiple lines — each line with 5+ characters becomes a DataMatrix code. Only first number/word is used..."></textarea>
 
         <!-- progress & stats -->
         <div class="progress-container" id="progressContainer" style="display: none;">
@@ -367,22 +367,35 @@
         const progressFill = document.getElementById('progressFill');
 
         // --- state
-        let currentValidQRCodes = [];        // store { text, dataUrl? } (dataUrl filled after generation)
+        let currentValidQRCodes = [];
         let isGenerating = false;
         let generationAbort = false;
+
+        // --- get only FIRST token from line
+        function extractFirstToken(line) {
+            const trimmed = line.trim();
+            if (!trimmed) return '';
+            // split by any spaces/tabs
+            const parts = trimmed.split(/\s+/);
+            return parts[0] || '';
+        }
 
         // --- helper: count lines and eligible
         function updateCounts() {
             const raw = textarea.value;
             const lines = raw.split(/\r?\n/);
+
             const total = lines.length;
-            const eligible = lines.filter(l => l.trim().length >= 5).length;
+            const eligible = lines
+                .map(extractFirstToken)
+                .filter(t => t.length >= 5).length;
+
             totalLinesSpan.innerText = total;
             eligibleSpan.innerText = eligible;
         }
 
         textarea.addEventListener('input', updateCounts);
-        updateCounts(); // initial
+        updateCounts();
 
         // --- dark mode
         function toggleDark() {
@@ -400,7 +413,7 @@
         }
         darkToggle.addEventListener('click', toggleDark);
 
-        // --- clear (also resets view)
+        // --- clear
         clearBtn.addEventListener('click', () => {
             textarea.value = '';
             currentValidQRCodes = [];
@@ -408,7 +421,7 @@
             updateCounts();
         });
 
-        // --- refresh page (simple reload)
+        // --- refresh page
         refreshBtn.addEventListener('click', () => location.reload());
 
         // --- file upload
@@ -420,18 +433,19 @@
             reader.onload = (ev) => {
                 textarea.value = ev.target.result;
                 updateCounts();
-                fileInput.value = ''; // allow re-upload same file
+                fileInput.value = '';
             };
             reader.readAsText(file);
         });
 
-        // --- render QR stack from array of {text, dataUrl} (with fade in)
+        // --- render output
         function renderQRStack(codes) {
             if (!codes || codes.length === 0) {
                 qrStackDiv.innerHTML = `<div class="placeholder-info"><i class="fas fa-smile-wink" style="font-size:2.5rem; opacity:0.5; margin-bottom:1rem;"></i><br />No codes yet. Paste long text and generate.</div>`;
                 validSpan.innerText = '0';
                 return;
             }
+
             let html = '';
             codes.forEach((item, idx) => {
                 html += `<div class="qr-card" style="animation-delay: ${idx * 0.03}s">
@@ -441,36 +455,43 @@
                     <div class="qr-text-label">${escapeHtml(item.text)}</div>
                 </div>`;
             });
+
             qrStackDiv.innerHTML = html;
             validSpan.innerText = codes.length;
         }
 
-        // simple escape for text (avoid XSS)
+        // escape text
         function escapeHtml(unsafe) {
             return unsafe.replace(/[&<>"']/g, function(m) {
-                if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;';
-                if(m === '"') return '&quot;'; return '&#039;';
+                if(m === '&') return '&amp;';
+                if(m === '<') return '&lt;';
+                if(m === '>') return '&gt;';
+                if(m === '"') return '&quot;';
+                return '&#039;';
             });
         }
 
-        // --- generate DataMatrix codes in batches (async)
+        // --- generate DataMatrix codes
         generateBtn.addEventListener('click', async () => {
             if (isGenerating) return;
+
             const raw = textarea.value;
             const lines = raw.split(/\r?\n/);
+
+            // ONLY FIRST token is used
             const validTexts = lines
-                .map(l => l.trim())
-                .filter(t => t.length >= 5);   // core rule
+                .map(extractFirstToken)
+                .filter(t => t.length >= 5);
 
             if (validTexts.length === 0) {
                 alert('No lines with 5+ characters. Nothing to generate.');
                 return;
             }
 
-            // reset state
             isGenerating = true;
             generationAbort = false;
             currentValidQRCodes = [];
+
             qrStackDiv.innerHTML = `<div class="placeholder-info"><i class="fas fa-spinner fa-pulse"></i> Generating ${validTexts.length} DataMatrix codes ...</div>`;
             progressContainer.style.display = 'block';
             progressFill.style.width = '0%';
@@ -481,6 +502,7 @@
 
             for (let i = 0; i < validTexts.length; i += batchSize) {
                 if (generationAbort) break;
+
                 const batch = validTexts.slice(i, i + batchSize);
 
                 const promises = batch.map(async (text) => {
@@ -495,6 +517,7 @@
 
                 const results = await Promise.all(promises);
                 const validResults = results.filter(r => r !== null);
+
                 currentValidQRCodes.push(...validResults);
 
                 completed = currentValidQRCodes.length;
@@ -514,23 +537,21 @@
             }
         });
 
-        // --- DataMatrix generator (returns PNG dataURL)
+        // --- DataMatrix generator
         function generateDataMatrixDataURL(text) {
             return new Promise((resolve, reject) => {
                 try {
                     const canvas = document.createElement('canvas');
 
-                    // BWIP-JS DataMatrix
                     bwipjs.toCanvas(canvas, {
-                        bcid: 'datamatrix',   // DataMatrix type
+                        bcid: 'datamatrix',
                         text: text,
-                        scale: 6,             // size control
+                        scale: 6,
                         includetext: false,
                         padding: 8,
                         backgroundcolor: 'FFFFFF'
                     });
 
-                    // convert canvas to PNG dataURL
                     const url = canvas.toDataURL('image/png');
                     resolve(url);
                 } catch (e) {
