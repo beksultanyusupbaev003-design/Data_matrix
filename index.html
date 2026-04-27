@@ -15,7 +15,6 @@
             padding: 0;
             box-sizing: border-box;
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.1s;
         }
 
         :root {
@@ -72,7 +71,7 @@
 
         h1 {
             font-size: 1.9rem;
-            font-weight: 600;
+            font-weight: 650;
             letter-spacing: -0.02em;
             margin-bottom: 0.3rem;
             display: flex;
@@ -89,7 +88,7 @@
             font-size: 0.9rem;
             padding: 0.3rem 1rem;
             border-radius: 40px;
-            font-weight: 500;
+            font-weight: 600;
             margin-left: 8px;
         }
 
@@ -114,14 +113,13 @@
             padding: 0.7rem 1.4rem;
             border-radius: 60px;
             font-size: 0.95rem;
-            font-weight: 500;
+            font-weight: 600;
             display: inline-flex;
             align-items: center;
             gap: 10px;
             cursor: pointer;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-            transition: all 0.2s ease;
             background: var(--card);
+            transition: 0.2s;
         }
 
         .btn-primary {
@@ -159,7 +157,7 @@
             border-radius: 60px;
             height: 10px;
             width: 100%;
-            margin: 16px 0 6px;
+            margin: 16px 0 8px;
             overflow: hidden;
             display: none;
         }
@@ -169,7 +167,15 @@
             background: linear-gradient(90deg, var(--primary), var(--accent));
             width: 0%;
             border-radius: 60px;
-            transition: width 0.1s linear;
+            transition: width 0.15s ease;
+        }
+
+        .status-text {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--secondary);
+            margin-bottom: 12px;
+            display: none;
         }
 
         .stats {
@@ -214,7 +220,7 @@
 
         .qr-text-label {
             font-size: 1.1rem;
-            font-weight: 600;
+            font-weight: 700;
             word-break: break-word;
             max-width: 95%;
             background: var(--bg);
@@ -228,11 +234,10 @@
         .index-indicator {
             margin-top: 14px;
             font-size: 1rem;
-            font-weight: 600;
+            font-weight: 700;
             color: var(--secondary);
         }
 
-        /* NAV FIXED */
         .nav-buttons {
             display: flex;
             justify-content: center;
@@ -264,8 +269,8 @@
         }
 
         /* ONLY CONTENT SLIDE */
-        .slide-right { animation: slideRight 0.25s ease; }
-        .slide-left  { animation: slideLeft 0.25s ease; }
+        .slide-right { animation: slideRight 0.28s ease; }
+        .slide-left  { animation: slideLeft 0.28s ease; }
 
         @keyframes slideRight {
             from { opacity: 0; transform: translateX(40px); }
@@ -329,6 +334,8 @@
             <div class="progress-fill" id="progressFill"></div>
         </div>
 
+        <div class="status-text" id="statusText">Generating...</div>
+
         <div class="stats">
             <span>Total lines: <span id="totalLines">0</span></span>
             <span>Eligible (≥5): <span id="eligibleLines">0</span></span>
@@ -338,7 +345,7 @@
     <div id="qrViewer"></div>
 
     <footer class="small-note">
-        <i class="fas fa-shield-alt"></i> DataMatrix · FAST mode
+        <i class="fas fa-shield-alt"></i> DataMatrix · Smooth generating
     </footer>
 </div>
 
@@ -359,6 +366,7 @@
     const downloadZipBtn = document.getElementById('downloadZipBtn');
     const progressContainer = document.getElementById('progressContainer');
     const progressFill = document.getElementById('progressFill');
+    const statusText = document.getElementById('statusText');
     const qrViewer = document.getElementById('qrViewer');
 
     let currentValidQRCodes = [];
@@ -436,7 +444,7 @@
 
         qrViewer.innerHTML = `
             <div class="single-view">
-                <div class="content-area ${animationClass}" id="contentArea">
+                <div class="content-area ${animationClass}">
                     <div class="qr-wrapper">
                         <img src="${item.dataUrl}" alt="DataMatrix" loading="lazy">
                     </div>
@@ -479,7 +487,7 @@
                 bwipjs.toCanvas(canvas, {
                     bcid: 'datamatrix',
                     text: text,
-                    scale: 5, // TEZROQ
+                    scale: 5,
                     includetext: false,
                     padding: 6,
                     backgroundcolor: 'FFFFFF'
@@ -491,9 +499,14 @@
         });
     }
 
-    async function generateBatch(validTexts, batchSize = 30) {
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function generateSmooth(validTexts, batchSize = 12) {
         currentValidQRCodes = [];
         progressContainer.style.display = 'block';
+        statusText.style.display = 'block';
         progressFill.style.width = '0%';
 
         const total = validTexts.length;
@@ -511,10 +524,19 @@
             }));
 
             currentValidQRCodes.push(...results.filter(x => x !== null));
-            progressFill.style.width = `${(currentValidQRCodes.length / total) * 100}%`;
+
+            const percent = (currentValidQRCodes.length / total) * 100;
+            progressFill.style.width = percent + "%";
+
+            const last = currentValidQRCodes[currentValidQRCodes.length - 1];
+            if (last) statusText.innerText = "Generating: " + last.text;
+
+            // UI freeze bo'lmasin deb kichkina pause
+            await sleep(35);
         }
 
         progressContainer.style.display = 'none';
+        statusText.style.display = 'none';
     }
 
     generateBtn.addEventListener('click', async () => {
@@ -529,9 +551,15 @@
         }
 
         isGenerating = true;
-        qrViewer.innerHTML = `<div class="placeholder-info"><i class="fas fa-spinner fa-pulse"></i><br>FAST generating...</div>`;
 
-        await generateBatch(validTexts, 40);
+        qrViewer.innerHTML = `
+            <div class="placeholder-info">
+                <i class="fas fa-spinner fa-pulse"></i><br>
+                Generating smoothly...
+            </div>
+        `;
+
+        await generateSmooth(validTexts, 12);
 
         currentIndex = 0;
         renderViewer('slide-right');
@@ -548,6 +576,7 @@
         const folder = zip.folder("datamatrix_codes");
 
         progressContainer.style.display = 'block';
+        statusText.style.display = 'block';
         progressFill.style.width = '0%';
 
         let processed = 0;
@@ -562,6 +591,9 @@
 
             processed++;
             progressFill.style.width = `${(processed / total) * 100}%`;
+            statusText.innerText = "ZIP: " + processed + " / " + total;
+
+            await sleep(10);
         }
 
         const content = await zip.generateAsync({ type: "blob" });
@@ -572,6 +604,7 @@
         URL.revokeObjectURL(link.href);
 
         progressContainer.style.display = 'none';
+        statusText.style.display = 'none';
     });
 
     renderViewer();
